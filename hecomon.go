@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"gopkg.in/natefinch/lumberjack.v2"
+	"log"
 	"math/big"
 	"os"
 	"os/exec"
@@ -25,7 +27,7 @@ type State struct {
 }
 
 func (m State) String() string {
-	return fmt.Sprintf("height: %d, count:%d \n", m.height, m.count)
+	return fmt.Sprintf("height: %d, count:%d", m.height, m.count)
 }
 
 var (
@@ -43,6 +45,14 @@ func main() {
 	}
 	args = os.Args
 
+	log.SetOutput(&lumberjack.Logger{
+		Filename:   "./hecomon.log",
+		MaxSize:    10, // megabytes
+		MaxBackups: 4,
+		MaxAge:     28,    //days
+		Compress:   false, // disabled by default
+	})
+
 	go monitorLoop()
 
 	for {
@@ -51,7 +61,7 @@ func main() {
 }
 
 func runApp() {
-	fmt.Printf("start command with args: %s", strings.Join(args[1:], " "))
+	log.Printf("start command with args %s", strings.Join(args[1:], " "))
 
 	childCmd = exec.Command(args[1], args[2:]...)
 	childCmd.Stdout = os.Stdout
@@ -59,7 +69,7 @@ func runApp() {
 	childCmd.Stdin = os.Stdin
 
 	if err := childCmd.Run(); err != nil {
-		fmt.Printf("error in start %s \n", err)
+		log.Printf("error in start %s \n", err)
 	}
 
 	//clear state
@@ -80,30 +90,30 @@ func monitorLoop() {
 func fetchBlock() {
 	rpcClient, err := ethclient.Dial(rpcHost)
 	if err != nil {
-		fmt.Printf("dial host %s %s\n", rpcHost, err)
+		log.Printf("dial host %s %s\n", rpcHost, err)
 		handleErr()
 		return
 	}
 
-	fmt.Println("fetch block at", time.Now())
+	log.Println("fetch block at", time.Now())
 
 	height, err := rpcClient.BlockNumber(context.Background())
 	if err != nil || height == 0 {
-		fmt.Printf("erro in block height, %s \n", err)
+		log.Printf("erro in block height, %s \n", err)
 		handleErr()
 		return
 	}
 
-	fmt.Println("read height:", height)
+	log.Println("read height:", height)
 
 	block, err := rpcClient.BlockByNumber(context.Background(), new(big.Int).SetUint64(height))
 	if err != nil || block == nil {
-		fmt.Printf("erro in block %s, \n ", err)
+		log.Printf("erro in block %s, \n ", err)
 		handleErr()
 		return
 	}
 
-	fmt.Printf("read block %d -> %s: \n", block.Header().Number, block.Hash().String())
+	log.Printf("read block %d -> %s: \n", block.Header().Number, block.Hash().String())
 
 	//count
 	count(height, block)
@@ -142,13 +152,13 @@ func tryKill() {
 
 func clearState() {
 	lastState = nil
-	fmt.Println("clear state")
+	log.Println("clear state")
 }
 
 func kill() bool {
 	err := childCmd.Process.Kill()
 	if err != nil {
-		fmt.Printf("kill error %s \n", err)
+		log.Printf("kill error %s \n", err)
 	}
 
 	return err == nil
@@ -165,5 +175,5 @@ func handleErr() {
 }
 
 func printStatus() {
-	fmt.Printf("now: %s, state:%s \n", time.Now().String(), lastState)
+	log.Printf("now: %s, state:%s ", time.Now().String(), lastState)
 }
