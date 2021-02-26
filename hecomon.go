@@ -20,7 +20,7 @@ import (
 const (
 	rpcHost       = "http://127.0.0.1:8545"
 	fetchInterval = 3
-	killCount     = 10
+	killCount     = 100
 )
 
 type State struct {
