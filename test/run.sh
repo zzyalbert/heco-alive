@@ -1,0 +1,1 @@
+./geth --config ./config.toml --testnet
