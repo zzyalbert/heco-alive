@@ -1,1 +1,1 @@
-./geth --config ./config.toml --testnet
+./hecomon ./geth --config ./config.toml --testnet
