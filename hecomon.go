@@ -12,16 +12,29 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
-	rpcHost       = "http://127.0.0.1:8545"
-	fetchInterval = 3
-	killCount     = 100
+	path = "./hecomon_config.toml"
 )
+
+type Config struct {
+	LogPath       string
+	Rpc           string
+	FetchInterval int
+	KillCount     int
+}
+
+var defaultConfig Config = Config{
+	LogPath:       "./logs/hecomon.log",
+	Rpc:           "http://127.0.0.1:8545",
+	FetchInterval: 3,
+	KillCount:     40,
+}
 
 type State struct {
 	height uint64
@@ -38,9 +51,38 @@ var (
 	clearState chan int
 	childCmd   *exec.Cmd
 	args       []string
+	config     *Config
 )
 
+func loadConfig() {
+
+	config = &Config{}
+	_, err := toml.DecodeFile(path, &config)
+	if err != nil {
+		log.Printf("read config error: %v", err)
+	}
+
+	if config.LogPath == "" {
+		config.LogPath = defaultConfig.LogPath
+	}
+
+	if config.Rpc == "" {
+		config.Rpc = defaultConfig.Rpc
+	}
+
+	if config.FetchInterval <= 0 {
+		config.FetchInterval = defaultConfig.FetchInterval
+	}
+
+	if config.KillCount <= 0 {
+		config.KillCount = defaultConfig.KillCount
+	}
+
+	log.Printf("config info: %v", config)
+}
+
 func main() {
+
 	fmt.Printf("hecomon start with %s\n", strings.Join(os.Args, " "))
 
 	if len(os.Args) < 2 {
@@ -48,6 +90,9 @@ func main() {
 		os.Exit(1)
 	}
 	args = os.Args
+
+	//read config info
+	loadConfig()
 
 	log.SetOutput(&lumberjack.Logger{
 		Filename:   "./logs/hecomon.log",
@@ -83,7 +128,7 @@ func runApp() {
 }
 
 func monitorLoop() {
-	t := time.NewTicker(fetchInterval * time.Second)
+	t := time.NewTicker(time.Duration(config.FetchInterval) * time.Second)
 
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGTERM, syscall.SIGINT)
@@ -124,9 +169,9 @@ func getCurrentHeight(client *ethclient.Client) (height uint64, err error) {
 }
 
 func fetchBlock() {
-	rpcClient, err := ethclient.Dial(rpcHost)
+	rpcClient, err := ethclient.Dial(config.Rpc)
 	if err != nil {
-		log.Printf("dial host %s %s\n", rpcHost, err)
+		log.Printf("dial host %s %s\n", config.Rpc, err)
 		handleErr()
 		return
 	}
@@ -179,7 +224,7 @@ func tryKill() {
 
 	printStatus()
 
-	if lastState != nil && lastState.count >= killCount {
+	if lastState != nil && lastState.count >= int64(config.KillCount) {
 		kill()
 	}
 }
