@@ -135,14 +135,19 @@ func monitorLoop() {
 
 	for {
 		select {
-		case <-sigc:
-			kill()
+		case s := <-sigc:
+			killWithSignal(s)
 			os.Exit(0)
+
 		case <-t.C:
 			fetchBlock()
 		case <-clearState:
 			lastState = nil
 			log.Println("clear state")
+		}
+
+		if childCmd != nil && childCmd.Process != nil {
+			log.Printf("current child process :%v", childCmd.Process.Pid)
 		}
 	}
 }
@@ -225,8 +230,24 @@ func tryKill() {
 	printStatus()
 
 	if lastState != nil && lastState.count >= int64(config.KillCount) {
-		kill()
+		log.Println("try kill....")
+		err := killWithSignal(syscall.SIGINT)
+		if err != nil {
+			kill()
+		}
 	}
+}
+
+func killWithSignal(sig os.Signal) error {
+	err := childCmd.Process.Signal(sig)
+	if err != nil {
+		log.Printf("kill with signal error %s \n", err)
+	}
+
+	state, err := childCmd.Process.Wait()
+	log.Printf("child process state: %v, err: %v", state, err)
+
+	return err
 }
 
 func kill() bool {
