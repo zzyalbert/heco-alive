@@ -244,6 +244,8 @@ func killWithSignal(sig os.Signal) error {
 		log.Printf("kill with signal error %s \n", err)
 	}
 
+	clearState <- 0
+
 	state, err := childCmd.Process.Wait()
 	log.Printf("child process state: %v, err: %v", state, err)
 
